@@ -1,0 +1,82 @@
+# portfolio/PortfolioSite/docker-compose.yml
+# Docker Composeのバージョン指定（3.8は安定版）
+version: '3.8'
+
+services:
+  # ========== フロントエンド（Nuxt.js） ==========
+  frontend:
+    # ビルド設定：./frontend/Dockerfileからイメージを作成
+    build: 
+      context: ./frontend      # ビルドコンテキスト（フォルダ）
+      dockerfile: Dockerfile   # 使用するDockerfile名
+    
+    # ポートマッピング：ホスト3000番 → コンテナ3000番
+    ports:
+      - "3000:3000"
+    
+    # ボリュームマウント：開発時のホットリロード用
+    volumes:
+      - ./frontend:/app        # ホストのコード → コンテナにマウント
+      - /app/node_modules      # node_modulesは別管理（高速化）
+    
+    # 環境変数：開発モードで起動
+    environment:
+      - NODE_ENV=development
+    
+    # 依存関係：backendが起動してから起動
+    depends_on:
+      - backend
+
+  # ========== バックエンド（Spring Boot + Kotlin） ==========
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    
+    # Spring Bootのデフォルトポート
+    ports:
+      - "8080:8080"
+    
+    # コードの変更を反映（開発用）
+    volumes:
+      - ./backend:/app
+    
+    # 環境変数：DB接続情報など
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker    # Dockerプロファイル使用
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/portfolio  # DB接続先
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=password
+    
+    # mysqlが起動してから起動
+    depends_on:
+      - mysql
+
+  # ========== データベース（MySQL） ==========
+  mysql:
+    # 既存のMySQLイメージを使用（自分でビルドしない）
+    image: mysql:8.0
+    restart: always  # 常に再起動（障害時の自動復旧）
+    
+    ports:
+      - "3306:3306"  # 外部からアクセス可能（HeidiSQL等で接続用）
+    
+    # MySQL初期設定
+    environment:
+      MYSQL_ROOT_PASSWORD: password    # rootパスワード
+      MYSQL_DATABASE: portfolio        # 初期DB作成
+      MYSQL_USER: app_user            # アプリ用ユーザー作成
+      MYSQL_PASSWORD: app_password    # アプリ用パスワード
+    
+    # データ永続化 + 初期化スクリプト
+    volumes:
+      - mysql_data:/var/lib/mysql      # データ永続化（名前付きvolume）
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql  # 初期SQL実行
+    
+    # MySQL8の認証方式を旧形式に（互換性向上）
+    command: --default-authentication-plugin=mysql_native_password
+
+# ========== 名前付きボリューム ==========
+# MySQLデータを永続化（コンテナ削除してもデータ保持）
+volumes:
+  mysql_data:

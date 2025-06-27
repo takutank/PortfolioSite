@@ -1,0 +1,97 @@
+# ==========  Docker関連  ==========
+# Docker Composeで作成されるボリューム
+.docker/
+docker-compose.override.yml
+
+# ==========  Node.js / Nuxt.js関連  ==========
+# 依存関係
+frontend/node_modules/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Nuxt.js固有
+frontend/.nuxt/
+frontend/dist/
+frontend/.output/
+frontend/.nitro/
+frontend/.cache/
+
+# 環境変数ファイル
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ==========  Java / Spring Boot関連  ==========
+# ビルド結果
+backend/build/
+backend/target/
+backend/out/
+
+# Gradle関連
+backend/.gradle/
+backend/gradle/wrapper/gradle-wrapper.jar
+
+# IDE関連
+backend/.idea/
+backend/*.iml
+backend/*.ipr
+backend/*.iws
+
+# Spring Boot関連
+backend/HELP.md
+backend/.mvn/
+
+# 環境変数ファイル
+backend/.env
+backend/application-local.yml
+backend/application-local.properties
+
+# ==========  MySQL関連  ==========
+# データベースファイル（Docker volumeで管理）
+mysql/data/
+*.sql.backup
+
+# ==========  IDE・エディタ関連  ==========
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ==========  ログファイル  ==========
+*.log
+logs/
+
+# ==========  一時ファイル  ==========
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ==========  環境固有設定  ==========
+# 本番環境設定（セキュリティ上重要）
+.env.production
+.env.staging
+docker-compose.prod.yml
+
+# ==========  その他  ==========
+# バックアップファイル
+*.backup
+*.bak

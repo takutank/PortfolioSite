@@ -1,0 +1,124 @@
+name: Claude日本語コードアシスタント
+
+# 手動実行のみ（コスト最適化）
+on:
+  # PRやIssueコメントで@claudeとメンションした時のみ実行
+  issue_comment:
+    types: [created]
+  
+  # GitHub UIからの手動実行も可能
+  workflow_dispatch:
+    inputs:
+      review_type:
+        description: 'レビューの種類'
+        required: true
+        default: 'general'
+        type: choice
+        options:
+        - general
+        - security
+        - performance
+        - clean-architecture
+      target_pr:
+        description: 'PR番号（空白の場合は最新PR）'
+        required: false
+        type: string
+
+jobs:
+  claude-review:
+    # @claudeメンション時または手動実行時のみ動作
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'issue_comment' && 
+       contains(github.event.comment.body, '@claude') &&
+       github.event.issue.pull_request != null)
+    
+    runs-on: ubuntu-latest
+    timeout-minutes: 20  # タイムアウト設定でコスト制御
+    
+    steps:
+      - name: 💰 実行前の残高チェック
+        run: |
+          echo "🏦 Claude実行前のAPI使用状況確認..."
+          usage_response=$(curl -s -w "%{http_code}" -o usage.json \
+            -H "Authorization: Bearer ${{ secrets.ANTHROPIC_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            https://api.anthropic.com/v1/usage)
+          
+          http_code="${usage_response: -3}"
+          if [ "$http_code" = "200" ]; then
+            total_cost=$(cat usage.json | jq -r '.total_cost // 0')
+            echo "💵 今月の使用料金: \${total_cost}"
+            if (( $(echo "$total_cost > 10" | bc -l) )); then
+              echo "⚠️  警告: 今月の使用料金が$10を超えています"
+            fi
+          fi
+          
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          # PRの変更も含めて取得
+          fetch-depth: 0
+          
+      - name: Claudeコードレビュー実行
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          max_turns: 5  # 会話ターン数制限でコスト制御
+          
+          # 日本語レビューのプロンプト
+          prompt: |
+            ## 指示
+            このPRを**日本語で**レビューしてください。
+            
+            ## レビュー観点
+            ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.review_type == 'security' && '🔒 **セキュリティ重点レビュー**' || 
+                github.event_name == 'workflow_dispatch' && github.event.inputs.review_type == 'performance' && '⚡ **パフォーマンス重点レビュー**' || 
+                github.event_name == 'workflow_dispatch' && github.event.inputs.review_type == 'clean-architecture' && '🏗️ **クリーンアーキテクチャ重点レビュー**' || 
+                '📋 **総合レビュー**' }}
+            
+            ### チェック項目
+            - 🛡️ セキュリティ: 機密情報の漏洩、脆弱性の有無
+            - 🚀 パフォーマンス: 効率的なコード、リソース使用量
+            - 📖 可読性: コメント、命名規則、構造の明確さ
+            - 🏗️ アーキテクチャ: 責務分離、依存関係、層の独立性
+            - 🔄 SOLID原則: 単一責任、開放閉鎖、依存関係逆転など
+            - 🧪 テスト: テスタビリティ、モック容易性、テストカバレッジ
+            
+            ## 出力形式
+            ### ✅ 良い点
+            - [良い実装について]
+            
+            ### ⚠️ 改善提案
+            - [具体的な改善点]
+            
+            ### 🔧 修正が必要な問題
+            - [重要な問題点]
+            
+            ## 注意事項
+            - **すべてのコメントは日本語で記述**
+            - 簡潔で要点を絞った内容にする（コスト最適化）
+            - 重要度の高い問題を優先的に指摘
+            - コード例を示す場合は最小限に留める
+            
+      - name: 実行後の使用量確認
+        if: always()
+        run: |
+          echo "📊 Claude実行後のAPI使用状況..."
+          usage_response=$(curl -s -w "%{http_code}" -o usage_after.json \
+            -H "Authorization: Bearer ${{ secrets.ANTHROPIC_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            https://api.anthropic.com/v1/usage)
+          
+          http_code="${usage_response: -3}"
+          if [ "$http_code" = "200" ]; then
+            total_cost=$(cat usage_after.json | jq -r '.total_cost // 0')
+            echo "💵 実行後の今月使用料金: \${total_cost}"
+            echo "🌐 詳細: https://console.anthropic.com/settings/billing"
+          fi
+          
+      - name: レビュー完了通知
+        if: success()
+        run: |
+          echo "✅ Claude日本語レビューが完了しました"
